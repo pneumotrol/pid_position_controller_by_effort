@@ -1,0 +1,9 @@
+<library path="pid_position_controller_by_effort">
+  <class name="pid_position_controller_by_effort/PositionController"
+    type="pid_position_controller_by_effort::PositionController"
+    base_class_type="controller_interface::ControllerInterface">
+    <description>
+      PID position controller commanded by effort.
+    </description>
+  </class>
+</library>
