@@ -14,8 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef ROBOT_CONTROLLERS__VISIBILITY_CONTROL_H_
-#define ROBOT_CONTROLLERS__VISIBILITY_CONTROL_H_
+#ifndef PID_POSITION_CONTROLLER_BY_EFFORT__VISIBILITY_CONTROL_H_
+#define PID_POSITION_CONTROLLER_BY_EFFORT__VISIBILITY_CONTROL_H_
 
 // This logic was borrowed (then namespaced) from the examples on the gcc wiki:
 //     https://gcc.gnu.org/wiki/Visibility
@@ -54,4 +54,4 @@
 #define TEMPLATES__ROS2_CONTROL__VISIBILITY_PUBLIC_TYPE
 #endif
 
-#endif  // ROBOT_CONTROLLERS__VISIBILITY_CONTROL_H_
+#endif  // PID_POSITION_CONTROLLER_BY_EFFORT__VISIBILITY_CONTROL_H_

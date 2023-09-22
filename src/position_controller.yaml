@@ -2,12 +2,17 @@ position_controller:
   joints: {
     type: string_array,
     default_value: [],
-    description: "Specifies joints used by the controller. If state joints parameter is defined, then only command joints are defined with this parameter.",
+    description: "Specifies joints used by the controller.",
     read_only: true,
   }
-  interface_name: {
+  command_interface_name: {
     type: string,
     default_value: "",
-    description: "Name of the interface used by the controller on joints and command_joints.",
+    description: "Name of the interface used for command.",
     read_only: true,
+  }
+  state_interface_name: {
+    type: string,
+    default_value: "",
+    description: "Name of the interface used for state."
   }

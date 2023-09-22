@@ -34,7 +34,7 @@ PositionController::command_interface_configuration() const {
   // define command interface (e.g. "joint1/effort")
   command_interfaces_config.names.reserve(params_.joints.size());
   for (const auto &joint : params_.joints) {
-    command_interfaces_config.names.push_back(joint + "/" + params_.interface_name);
+    command_interfaces_config.names.push_back(joint + "/" + params_.command_interface_name);
   }
 
   return command_interfaces_config;
@@ -50,7 +50,7 @@ PositionController::state_interface_configuration() const {
   // define state interface (e.g. "joint1/effort")
   state_interfaces_config.names.reserve(params_.joints.size());
   for (const auto &joint : params_.joints) {
-    state_interfaces_config.names.push_back(joint + "/" + params_.interface_name);
+    state_interfaces_config.names.push_back(joint + "/" + params_.state_interface_name);
   }
 
   return state_interfaces_config;
@@ -117,14 +117,14 @@ PositionController::on_configure(const rclcpp_lifecycle::State &previous_state) 
 
 void PositionController::target_callback(const std::shared_ptr<TargetMsg> msg) {
   // target_ is updated to the value of subscribed topic.
-  if (msg->dof_names.size() != params_.joints.size()) {
+  if (msg->dof_names.size() == params_.joints.size()) {
+    target_.writeFromNonRT(msg);
+  } else {
     // command dimensions of the topic is invalid
     RCLCPP_ERROR(
       get_node()->get_logger(),
       "Received %zu, but expected %zu joints in command. Ignoring message.",
       msg->dof_names.size(), params_.joints.size());
-  } else {
-    target_.writeFromNonRT(msg);
   }
 }
 
@@ -137,6 +137,11 @@ PositionController::on_activate(const rclcpp_lifecycle::State &previous_state) {
   auto msg = *(target_.readFromRT());
   PositionController::initialize_target_buffer(msg, params_.joints);
 
+  // initialize command interface
+  for (auto &command_interface : command_interfaces_) {
+    command_interface.set_value(0.0);
+  }
+
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
@@ -147,7 +152,7 @@ PositionController::on_deactivate(const rclcpp_lifecycle::State &previous_state)
 
   // initialize command interface
   for (auto &command_interface : command_interfaces_) {
-    command_interface.set_value(std::numeric_limits<double>::quiet_NaN());
+    command_interface.set_value(0.0);
   }
 
   return controller_interface::CallbackReturn::SUCCESS;
@@ -161,16 +166,18 @@ PositionController::update(const rclcpp::Time &time, const rclcpp::Duration &per
 
   auto targets = *(target_.readFromRT());
 
-  auto Kp = 1.0;  // TODO
+  auto Kp = 100.0;  // TODO: to params
 
   for (size_t i = 0; i < command_interfaces_.size(); i++) {
-    // PID control
-    // effort = target - current_state
-    auto r = targets->values[i];
-    auto y = state_interfaces_[i].get_value();
-    auto u = Kp * (r - y);
+    if (!std::isnan(targets->values[i])) {
+      // PID control
+      // effort = target - current_state
+      auto r = targets->values[i];
+      auto y = state_interfaces_[i].get_value();
+      auto u = Kp * (r - y);
 
-    command_interfaces_[i].set_value(u);
+      command_interfaces_[i].set_value(u);
+    }
   }
 
   return controller_interface::return_type::OK;
