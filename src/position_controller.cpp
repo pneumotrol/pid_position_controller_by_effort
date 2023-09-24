@@ -1,6 +1,7 @@
 #include "pid_position_controller_by_effort/position_controller.hpp"
 
 namespace pid_position_controller_by_effort {
+
 PositionController::PositionController()
   : controller_interface::ControllerInterface() {}
 
@@ -13,10 +14,9 @@ PositionController::on_init() {
   try {
     param_listener_ = std::make_shared<position_controller::ParamListener>(get_node());
   } catch (const std::exception &e) {
-    fprintf(
-      stderr,
-      "Exception thrown during controller's init with message: %s \n",
-      e.what());
+    fprintf(stderr,
+            "Exception thrown during controller's init with message: %s \n",
+            e.what());
 
     return controller_interface::CallbackReturn::ERROR;
   }
@@ -69,6 +69,18 @@ PositionController::on_configure(const rclcpp_lifecycle::State &previous_state) 
   params_ = param_listener_->get_params();
 
   // ----------------------------------------
+  // target buffer
+  // ----------------------------------------
+  // create target buffer
+  target_.writeFromNonRT(std::make_unique<TargetMsg>());
+
+  // initialize target buffer
+  auto target = *(target_.readFromRT());
+  target->dof_names = params_.joints;
+  target->values.assign(params_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+  target->values_dot.assign(params_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+
+  // ----------------------------------------
   // QoS
   // ----------------------------------------
   auto qos = rclcpp::SystemDefaultsQoS();
@@ -83,29 +95,22 @@ PositionController::on_configure(const rclcpp_lifecycle::State &previous_state) 
     "~/target", qos,
     std::bind(&PositionController::target_callback, this, std::placeholders::_1));
 
-  // create and initialize target buffer
-  auto msg = std::make_shared<TargetMsg>();
-  PositionController::initialize_target_buffer(msg, params_.joints);
-  target_.writeFromNonRT(msg);
-
   // ----------------------------------------
   // current state publisher
   // ----------------------------------------
   // create publisher
   try {
-    state_publisher_ =
-      std::make_unique<StatePublisher>(get_node()->create_publisher<StateMsg>(
-        "~/state", rclcpp::SystemDefaultsQoS()));
+    state_publisher_ = std::make_unique<StatePublisher>(
+      get_node()->create_publisher<StateMsg>("~/state", qos));
   } catch (const std::exception &e) {
     fprintf(stderr,
-            "Exception thrown during publisher creation at configure stage "
-            "with message : %s \n",
+            "Exception thrown during publisher creation at configure stage with message: %s \n",
             e.what());
 
     return controller_interface::CallbackReturn::ERROR;
   }
 
-  // TODO
+  // TODO: what these are?
   state_publisher_->lock();
   state_publisher_->msg_.header.frame_id = params_.joints[0];
   state_publisher_->unlock();
@@ -115,16 +120,15 @@ PositionController::on_configure(const rclcpp_lifecycle::State &previous_state) 
   return controller_interface::CallbackReturn::SUCCESS;
 }
 
-void PositionController::target_callback(const std::shared_ptr<TargetMsg> msg) {
+void PositionController::target_callback(const std::shared_ptr<TargetMsg> target) {
   // target_ is updated to the value of subscribed topic.
-  if (msg->dof_names.size() == params_.joints.size()) {
-    target_.writeFromNonRT(msg);
+  if (target->dof_names.size() == params_.joints.size()) {
+    target_.writeFromNonRT(target);
   } else {
     // command dimensions of the topic is invalid
-    RCLCPP_ERROR(
-      get_node()->get_logger(),
-      "Received %zu, but expected %zu joints in command. Ignoring message.",
-      msg->dof_names.size(), params_.joints.size());
+    RCLCPP_ERROR(get_node()->get_logger(),
+                 "Received %zu, but expected %zu joints in command. Ignoring message.",
+                 target->dof_names.size(), params_.joints.size());
   }
 }
 
@@ -134,8 +138,10 @@ PositionController::on_activate(const rclcpp_lifecycle::State &previous_state) {
   static_cast<void>(previous_state);
 
   // initialize target buffer
-  auto msg = *(target_.readFromRT());
-  PositionController::initialize_target_buffer(msg, params_.joints);
+  auto target = *(target_.readFromRT());
+  target->dof_names = params_.joints;
+  target->values.assign(params_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+  target->values_dot.assign(params_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 
   // initialize command interface
   for (auto &command_interface : command_interfaces_) {
@@ -181,12 +187,6 @@ PositionController::update(const rclcpp::Time &time, const rclcpp::Duration &per
   }
 
   return controller_interface::return_type::OK;
-}
-
-void PositionController::initialize_target_buffer(std::shared_ptr<TargetMsg> &msg, std::vector<std::string> &joints) {
-  msg->dof_names = joints;
-  msg->values.resize(joints.size(), std::numeric_limits<double>::quiet_NaN());
-  msg->values_dot.resize(joints.size(), std::numeric_limits<double>::quiet_NaN());
 }
 
 }  // namespace pid_position_controller_by_effort

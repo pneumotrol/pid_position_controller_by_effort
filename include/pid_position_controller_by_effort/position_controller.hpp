@@ -13,8 +13,6 @@
 #include "std_srvs/srv/set_bool.hpp"
 
 namespace pid_position_controller_by_effort {
-static constexpr size_t STATE_MY_ITFS = 0;
-static constexpr size_t CMD_MY_ITFS = 0;
 
 class PositionController : public controller_interface::ControllerInterface {
  public:
@@ -49,33 +47,29 @@ class PositionController : public controller_interface::ControllerInterface {
   controller_interface::return_type
   update(const rclcpp::Time &time, const rclcpp::Duration &preiod) override;
 
-  using ModeSrvType = std_srvs::srv::SetBool;
   using TargetMsg = control_msgs::msg::MultiDOFCommand;
   using StateMsg = control_msgs::msg::SingleDOFStateStamped;
 
  protected:
-  // 以下のパラメータはdisplacement_controller_parameters.hppで定義され，
-  // CMakeLists.txtのgenerate_parameter_libraryによってライブラリ化される．
+  // parameters are defined in a yaml file,
+  // and are libraryed by generate_parameter_library in CMakeLists.txt.
   std::shared_ptr<position_controller::ParamListener> param_listener_;
   position_controller::Params params_;
 
+  // parameter
+  realtime_tools::RealtimeBuffer<std::shared_ptr<TargetMsg>> target_;
+
   // target subscriber
   rclcpp::Subscription<TargetMsg>::SharedPtr target_subscriber_ = nullptr;
-  realtime_tools::RealtimeBuffer<std::shared_ptr<TargetMsg>> target_;
 
   // current state publisher
   using StatePublisher = realtime_tools::RealtimePublisher<StateMsg>;
-  // rclcpp::Publisher<StateMsg>::SharedPtr s_publisher_; TODO: unused?
   std::unique_ptr<StatePublisher> state_publisher_;
 
  private:
   // reference value subscribe callback
-  // TODO: can be lambda?
   TEMPLATES__ROS2_CONTROL__VISIBILITY_LOCAL
   void target_callback(const std::shared_ptr<TargetMsg> msg);
-
-  TEMPLATES__ROS2_CONTROL__VISIBILITY_LOCAL
-  static void initialize_target_buffer(std::shared_ptr<TargetMsg> &msg, std::vector<std::string> &dof_names);
 };
 
 }  // namespace pid_position_controller_by_effort
